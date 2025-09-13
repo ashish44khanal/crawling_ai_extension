@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { useState, useRef, useEffect } from 'react';
 
 interface Message {
@@ -10,7 +11,25 @@ const App = () => {
     { sender: 'bot', text: 'Hello! I am a simple chatbot. How can I help you today?' },
   ]);
   const [input, setInput] = useState('');
+  const [activeTabUrl, setActiveTabUrl] = useState('');
+  const [dom, setDom] = useState<string>('');
+  const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    async function getTabInfo() {
+      try {
+        const result = await fetchDOM();
+        if (result) {
+          setActiveTabUrl(result.url);
+          setDom(result.dom);
+        }
+      } catch (error) {
+        console.error('Error fetching tab info:', error);
+      }
+    }
+    getTabInfo();
+  }, []);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -18,24 +37,75 @@ const App = () => {
     }
   }, [messages]);
 
-  const sendMessage = () => {
+  const fetchDOM = async (): Promise<{ url: string; dom: string } | null> => {
+    return new Promise((resolve, reject) => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const activeTab = tabs[0];
+        if (!activeTab?.id) return reject('No active tab');
+
+        const url = activeTab.url || '';
+
+        chrome.scripting.executeScript(
+          {
+            target: { tabId: activeTab.id },
+            func: () => {
+              const bodyHTML = document.body.innerHTML;
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(bodyHTML, 'text/html');
+              doc.querySelectorAll('script').forEach((s) => s.remove());
+              return doc.body.innerHTML;
+            },
+          },
+          (injectionResults) => {
+            if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
+
+            if (injectionResults && injectionResults.length > 0) {
+              const dom = injectionResults[0].result as string;
+              resolve({ url, dom });
+            } else {
+              reject('No result from executeScript');
+            }
+          }
+        );
+      });
+    });
+  };
+
+  const sendMessage = async () => {
     if (input.trim() === '') return;
 
+    // Add user message immediately
     const userMessage: Message = { sender: 'user', text: input };
-    setMessages(prevMessages => [...prevMessages, userMessage]);
+    setMessages((prevMessages) => [...prevMessages, userMessage]);
 
-    const botResponse: Message = { sender: 'bot', text: 'I received your message! This is a simple response.' };
-    
-    setTimeout(() => {
-      setMessages(prevMessages => [...prevMessages, botResponse]);
-    }, 500);
+    setLoading(true);
 
-    setInput('');
+    const reqBody = { url: activeTabUrl, html: dom, instruction: input };
+
+    try {
+      const res = await axios.post('http://localhost:5000/api/rag/ingest', reqBody, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      const botMessage: Message = { sender: 'bot', text: res.data.reply };
+      // Add bot reply
+      setMessages((prevMessages) => [...prevMessages, botMessage]);
+    } catch (err) {
+      console.error('Error:', err);
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        { sender: 'bot', text: "Sorry, I couldn't process your request." },
+      ]);
+    } finally {
+      setLoading(false);
+      setInput('');
+    }
   };
 
   return (
     <div className="flex flex-col h-[400px] w-[300px] bg-gray-900 text-white  shadow-2xl overflow-hidden font-sans">
-      
       <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={messagesEndRef}>
         {messages.map((msg, index) => (
           <div
@@ -45,7 +115,7 @@ const App = () => {
             <div
               className={`max-w-[75%] rounded-lg py-2 px-4 shadow-md ${
                 msg.sender === 'user' ? 'bg-blue-600' : 'bg-gray-700'
-              }`}
+              } ${loading && index === messages.length - 1 && msg.sender === 'bot' ? 'opacity-50' : ''}`}
             >
               {msg.text}
             </div>
@@ -66,7 +136,12 @@ const App = () => {
           onClick={sendMessage}
           className="ml-2 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition duration-300"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
             <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l.674-.261a1 1 0 001.134-.523l.186-.341L12 7.632l7.614-7.614a1 1 0 00-1.414-1.414L12.553 9.106a1 1 0 00-.523 1.134l-.341.186a1 1 0 00-.523 1.134l-.341.186L6.591 16.486a1 1 0 001.409 1.169l14-7a1 1 0 000-1.788l-14-7z" />
           </svg>
         </button>
