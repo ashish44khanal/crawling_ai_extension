@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { RagService } from './rag.service';
 import { CreateRagDto } from './dto/create_rag.dto';
 
@@ -6,8 +6,7 @@ import { CreateRagDto } from './dto/create_rag.dto';
 export class RagController {
   constructor(private readonly ragService: RagService) {}
   @Post('ingest')
-  ingest(@Body() createRagDto: CreateRagDto) {
-    console.log('Received body:', createRagDto); // Debugging line
-    return this.ragService.ingest(createRagDto);
+  async ingest(@Body() createRagDto: CreateRagDto) {
+    return await this.ragService.extractTextFromHtml(createRagDto);
   }
 }

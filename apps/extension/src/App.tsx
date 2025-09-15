@@ -6,6 +6,20 @@ interface Message {
   text: string;
 }
 
+interface ExtractedResult {
+  url: string | null;
+  instruction: string;
+  parsed_fields: string[];
+  extracted: Record<string, string | string[]>;
+  confidence: Record<string, number>;
+}
+
+export interface ExtractedBlock {
+  text: string;
+  tag: string;
+  headingContext?: string;
+}
+
 const App = () => {
   const [messages, setMessages] = useState<Message[]>([
     { sender: 'bot', text: 'Hello! I am a simple chatbot. How can I help you today?' },
@@ -52,8 +66,32 @@ const App = () => {
               const bodyHTML = document.body.innerHTML;
               const parser = new DOMParser();
               const doc = parser.parseFromString(bodyHTML, 'text/html');
-              doc.querySelectorAll('script').forEach((s) => s.remove());
-              return doc.body.innerHTML;
+
+              // Remove unwanted tags
+              doc
+                .querySelectorAll(
+                  'script, style, noscript, svg,img,video,audio,iframe,header,footer,nav'
+                )
+                .forEach((el) => el.remove());
+              // Remove comments
+              doc.body.innerHTML = doc.body.innerHTML.replace(/<!--[\s\S]*?-->/g, '');
+
+              // Remove elements with display:none
+              doc.querySelectorAll('*').forEach((el) => {
+                const style = window.getComputedStyle(el);
+                if (style && style.display === 'none') el.remove();
+
+                // Remove class attributes
+                if (el.hasAttribute('class')) el.removeAttribute('class');
+              });
+
+              // Get cleaned HTML
+              let cleanedHTML = doc.body.innerHTML;
+
+              // Normalize whitespace
+              cleanedHTML = cleanedHTML.replace(/\s+/g, ' ').trim();
+
+              return cleanedHTML;
             },
           },
           (injectionResults) => {
@@ -83,13 +121,20 @@ const App = () => {
     const reqBody = { url: activeTabUrl, html: dom, instruction: input };
 
     try {
-      const res = await axios.post('http://localhost:5000/api/rag/ingest', reqBody, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      const botMessage: Message = { sender: 'bot', text: res.data.reply };
+      const res = await axios.post<ExtractedResult>(
+        'http://localhost:5000/api/rag/ingest',
+        reqBody,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      const botMessage: Message = {
+        sender: 'bot',
+        text: res.data.extracted ? JSON.stringify(res.data.extracted) : 'No data extracted.',
+      };
       // Add bot reply
       setMessages((prevMessages) => [...prevMessages, botMessage]);
     } catch (err) {

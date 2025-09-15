@@ -3,12 +3,16 @@ import { AppModule } from './modules/app.module';
 import { AppLogger } from './modules/logger/logger.service';
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
+import { json } from 'express';
 
 async function bootstrap() {
   const logger = new AppLogger();
   const app = await NestFactory.create(AppModule, {
     logger,
   });
+
+  app.use(json({ limit: '10mb' }));
+
   const config = app.get(ConfigService);
 
   app.enableCors({
