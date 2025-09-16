@@ -68,6 +68,7 @@ export class RagService {
   }
 
   async ingest(createRagDto: CreateRagDto) {
+    console.log('in ingest');
     // CHUNKING
     const docs = domAwareSplit(createRagDto.html, createRagDto.url);
     // EMBEDDING and STORAGE
@@ -78,8 +79,8 @@ export class RagService {
 
   async getSimilarChunks(instruction: string, url: string = 'https://example.com', topK = 5) {
     // 1. Retrieve relevant chunks
-    const chunks = await this.pgVector.similaritySearch(instruction, topK, {
-      filter: { url },
+    const chunks = await this.pgVector.similaritySearchWithScore(instruction, topK, {
+      filter: { url: { $in: url } },
     });
 
     this.logger.log(
@@ -91,19 +92,40 @@ export class RagService {
     const prompt = ChatPromptTemplate.fromMessages([
       [
         'system',
-        `You are an expert information extractor.
+        `You are an expert information extractor web crawler bot.
      Always return only valid JSON.
 
      Rules:
       - If a field is not found, use null as its value and a confidence of 0.
-      - Confidence should reflect how certain you are about the extraction (1 = very certain, 0 = not found/unknown).
+      - Confidence should inherited from context with conversion to percentage where 100 is certain and 0 is unknown.
       - Do not add any explanation or extra text outside the JSON.
       - In addition to extracted fields, generate a "summary_response" field.
-      - The "summary_response" must be a Markdown-formatted text summarizing the extracted data.
-      - For each parsed field, show:
-          - A heading (## <field>)
-          - The confidence score
-          - Its extracted values (as bullet points if multiple).`,
+      - The "summary_response" must be a Markdown-formatted text **mirroring the HTML structure** of the extracted data from {context}.
+- Use the \`metadata.tag\` (such as \`div\`, \`section\`, \`p\`) to decide the hierarchy:
+  - \`div\` → represent as a **Markdown heading (## or ### depending on nesting)**
+  - \`section\` → represent as a **higher-level Markdown heading (##)**
+  - \`p\` → represent as **paragraph text** under the right heading
+- For each extracted field, include:
+  - Its confidence score
+  - Its extracted values (as bullet points if multiple)
+- Follow strict GitHub Markdown structure, no extra explanation.
+- Example of \`summary_response\`:
+
+## Extracted Information. 
+
+### Section: AI Studio Retail (confidence=0.92). 
+
+- **Feature** 
+  - AI Engines for Retail
+  - Powered by AI Studio for Retail. 
+
+### Div: Product Benefits (confidence=0.87)
+- **Benefit**  
+  - Faster deployment  
+  - Scalable infrastructure. 
+
+### Paragraph (confidence=0.75)
+This section describes how AI Studio Retail accelerates AI adoption.`,
       ],
       [
         'human',
@@ -135,7 +157,12 @@ Context:
       instruction,
       url,
       recordId: 1,
-      context: chunks.map((c, i) => `--- Chunk ${i} ---\n${c.pageContent}`).join('\n\n'),
+      context: chunks
+        .map(
+          (c, i) => `--- Chunk ${i} (confidence=${(1 - c[1]).toFixed(3)}) ---
+${c[0].pageContent}`
+        )
+        .join('\n\n'),
     })) as ExtractedResult;
 
     // 6. SAVE OUTPUT in DB
