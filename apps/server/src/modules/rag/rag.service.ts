@@ -12,6 +12,17 @@ import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { JsonOutputParser } from '@langchain/core/output_parsers';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { domAwareSplit } from './utils/domBadedChunk';
+import { ExtractedOutputEntity } from './entities/extracted_output.entity';
+type ExtractedResult = {
+  url: string;
+  instruction: string;
+  parsed_fields: string[];
+  extracted: Record<string, string | string[]>;
+  confidence: Record<string, number>;
+  summary_response: string;
+};
+
+const TWO_DAYS = 2 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class RagService {
@@ -22,6 +33,8 @@ export class RagService {
   constructor(
     private configService: ConfigService,
     @InjectRepository(EmbeddingsEntity) private embeddingsRepository: Repository<EmbeddingsEntity>,
+    @InjectRepository(ExtractedOutputEntity)
+    private extractedOutputRepository: Repository<ExtractedOutputEntity>,
     private logger: AppLogger
   ) {
     this.llm = new ChatOpenAI({
@@ -79,12 +92,18 @@ export class RagService {
       [
         'system',
         `You are an expert information extractor.
-       Always return only valid JSON.
-       
-       Rules:
-        - If a field is not found, use null as its value and a confidence of 0.
-        - Confidence should reflect how certain you are about the extraction (1 = very certain, 0 = not found/unknown).
-        - Do not add any explanation or extra text outside the JSON.`,
+     Always return only valid JSON.
+
+     Rules:
+      - If a field is not found, use null as its value and a confidence of 0.
+      - Confidence should reflect how certain you are about the extraction (1 = very certain, 0 = not found/unknown).
+      - Do not add any explanation or extra text outside the JSON.
+      - In addition to extracted fields, generate a "summary_response" field.
+      - The "summary_response" must be a Markdown-formatted text summarizing the extracted data.
+      - For each parsed field, show:
+          - A heading (## <field>)
+          - The confidence score
+          - Its extracted values (as bullet points if multiple).`,
       ],
       [
         'human',
@@ -93,11 +112,11 @@ export class RagService {
 Return ONLY a valid JSON in the following format:
 {{
   "url": "{url}",
-  "instruction": "{instruction}",
+  "instructions": "{instruction}",
   "parsed_fields": [list of fields inferred from instruction],
   "extracted": {{ "<field>": "<value or null>" }},
   "confidence": {{ "<field>": <0..1> }},
-  "record_id": "{recordId}"
+  "summary_response": "<Markdown summary of extracted info with confidence>"
 }}
 
 Context:
@@ -112,21 +131,33 @@ Context:
     const chain = RunnableSequence.from([prompt, this.llm, parser]);
 
     // 5. Run chain
-    const result = await chain.invoke({
+    const result = (await chain.invoke({
       instruction,
       url,
       recordId: 1,
       context: chunks.map((c, i) => `--- Chunk ${i} ---\n${c.pageContent}`).join('\n\n'),
-    });
+    })) as ExtractedResult;
 
+    // 6. SAVE OUTPUT in DB
+    const db = this.extractedOutputRepository.create(result);
+    await this.extractedOutputRepository.save(db);
     return result;
   }
 
   async extractTextFromHtml(createRagDto: CreateRagDto) {
-    // CACHED : if data for this url is already in extracted_output_data and less than 2 days old, return it
-    const ingestStatus = await this.ingest(createRagDto);
-    if (ingestStatus.success) {
+    // CACHED : if data for this url is already in extracted_output_data and less than 2 days old, don't need to ingest it
+    const isUrlDataExists = await this.extractedOutputRepository.findOne({
+      where: { url: createRagDto.url },
+      order: { created_at: 'DESC' },
+    });
+
+    if (isUrlDataExists && isUrlDataExists.created_at > new Date(Date.now() - TWO_DAYS)) {
       return await this.getSimilarChunks(createRagDto.instruction, createRagDto.url, 5);
+    } else {
+      const ingestStatus = await this.ingest(createRagDto);
+      if (ingestStatus.success) {
+        return await this.getSimilarChunks(createRagDto.instruction, createRagDto.url, 5);
+      }
     }
   }
 }

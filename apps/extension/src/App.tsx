@@ -6,13 +6,14 @@ interface Message {
   text: string;
 }
 
-interface ExtractedResult {
-  url: string | null;
+type ExtractedResult = {
+  url: string;
   instruction: string;
   parsed_fields: string[];
   extracted: Record<string, string | string[]>;
   confidence: Record<string, number>;
-}
+  summary_response: string;
+};
 
 export interface ExtractedBlock {
   text: string;
@@ -80,9 +81,6 @@ const App = () => {
               doc.querySelectorAll('*').forEach((el) => {
                 const style = window.getComputedStyle(el);
                 if (style && style.display === 'none') el.remove();
-
-                // Remove class attributes
-                if (el.hasAttribute('class')) el.removeAttribute('class');
               });
 
               // Get cleaned HTML
@@ -133,7 +131,9 @@ const App = () => {
       );
       const botMessage: Message = {
         sender: 'bot',
-        text: res.data.extracted ? JSON.stringify(res.data.extracted) : 'No data extracted.',
+        text: res.data.summary_response
+          ? JSON.stringify(res.data.summary_response)
+          : 'No data extracted.',
       };
       // Add bot reply
       setMessages((prevMessages) => [...prevMessages, botMessage]);

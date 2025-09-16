@@ -1,4 +1,11 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  DeleteDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 @Entity('extracted_output_entity')
 export class ExtractedOutputEntity {
@@ -11,8 +18,8 @@ export class ExtractedOutputEntity {
   @Column({ type: 'text' })
   instructions: string;
 
-  @Column()
-  parsed_fields: string;
+  @Column({ type: 'jsonb', nullable: true })
+  parsed_fields: Record<string, any>;
 
   @Column({ type: 'jsonb', nullable: true })
   extracted: Record<string, any>;
@@ -20,6 +27,15 @@ export class ExtractedOutputEntity {
   @Column({ type: 'jsonb', nullable: true })
   confidence: Record<string, any>;
 
-  @Column({ type: 'text' })
+  @Column({ type: 'text', nullable: true })
   summary_response: string;
+
+  @CreateDateColumn()
+  created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
+
+  @DeleteDateColumn()
+  deleted_at: Date;
 }
