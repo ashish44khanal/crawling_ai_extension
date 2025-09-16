@@ -26,5 +26,5 @@ export default registerAs(
     logging: process.env.DB_LOGGING === 'true',
     autoLoadEntities: true,
     entities: ['dist/**/*.entity.js'],
-  }),
+  })
 );
