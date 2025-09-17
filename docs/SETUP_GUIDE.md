@@ -47,7 +47,8 @@ Navigate to the `apps/server` directory to run the backend.
 
 2.  **Set up environment variables for the backend:**
 
-    ``` create a .env.development file and add values to each fields referenced from .env.example file
+    ```bash
+    create a .env.development file and add values to each fields referenced from .env.example file
     ```
 
 
