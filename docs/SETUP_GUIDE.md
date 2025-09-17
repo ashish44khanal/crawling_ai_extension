@@ -45,7 +45,13 @@ Navigate to the `apps/server` directory to run the backend.
     pnpm run migration:run:dev
     ```
 
-2.  **Start the development server**:
+2.  **Set up environment variables for the backend:**
+
+    ``` create a .env.development file and add values to each fields referenced from .env.example file
+    ```
+
+
+3.  **Start the development server**:
 
     ```bash
     pnpm run dev
