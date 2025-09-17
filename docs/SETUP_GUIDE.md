@@ -11,6 +11,7 @@ Before starting, make sure you have the following installed:
 * **Node.js** >= 20
 * **pnpm** >= 8
 * **Docker**
+* **OPEN AI API KEY**
 
 ***
 

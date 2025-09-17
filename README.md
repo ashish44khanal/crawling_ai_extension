@@ -43,6 +43,7 @@ A **full-stack monorepo** featuring a **Chrome extension** and a **backend API**
 - Node.js >= 20  
 - pnpm >= 8  
 - PostgreSQL running locally or via Docker
+- OpenAI API KEY
 
 ### Installation
 ```bash
