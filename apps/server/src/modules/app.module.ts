@@ -1,10 +1,17 @@
-import { Module } from '@nestjs/common';
+import { Controller, Get, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { validate } from '../config/env.validation';
 import { RagModule } from './rag/rag.module';
 import appConfig from '../config/app.config';
 import databaseConfig from '../config/database.config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+@Controller('health')
+class HealthCheckController {
+  @Get()
+  status() {
+    return { status: 'OK' };
+  }
+}
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -30,7 +37,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
     }),
     RagModule,
   ],
-  controllers: [],
+  controllers: [HealthCheckController],
   providers: [],
 })
 export class AppModule {}
