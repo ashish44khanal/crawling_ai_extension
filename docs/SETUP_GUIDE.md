@@ -28,7 +28,7 @@ Before starting, make sure you have the following installed:
 2.  **Start services with Docker Compose**:
 
     ```bash
-    docker compose up
+    docker compose up api-dev ( this will run BE service locally )
     ```
 
 ***

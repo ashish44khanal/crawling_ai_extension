@@ -1,11 +1,68 @@
-version: '3.8'
 
 services:
+  migrate:
+    build:
+      context: .
+      target: sourcer
+    working_dir: /app/apps/server
+    command: pnpm run migration:run:prod
+    env_file:
+      - apps/server/.env.production
+    depends_on:
+      - db
+
+  api-dev:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    container_name: nestjs-crawling-api-dev
+    ports:
+      - 5000:5000
+    working_dir: /app/apps/server
+    depends_on:
+      - db
+    restart: always
+    env_file:
+      - apps/server/.env.development
+    environment:
+      NODE_ENV: development
+      DB_HOST: db
+      DB_PORT: 5432
+    command: sh -c "pnpm run migration:run:dev && pnpm run dev"
+
+  api-prod:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    container_name: nestjs-crawling-api-prod
+    ports:
+      - 5001:5000
+    working_dir: /app/apps/server
+    depends_on:
+      - db
+    restart: always
+    env_file:
+      - apps/server/.env.production
+    environment:
+      NODE_ENV: production
+      PORT:
+      OPENAI_API_KEY:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USERNAME:
+      DB_PASSWORD:
+      DB_DATABASE:
+      DB_LOGGING:
+      DB_SYNCHRONIZE:
+
+    command: sh -c "pnpm run start:prod"
+
   db:
     hostname: db
     image: pgvector/pgvector:pg16
+    container_name: pgvector-db
     ports:
-      - 5433:5432
+      - 5432:5432 
     restart: always
     environment:
       - POSTGRES_DB=api
@@ -13,6 +70,6 @@ services:
       - POSTGRES_PASSWORD=mypassword
     volumes:
       - db_data:/var/lib/postgresql/data
-      
+
 volumes:
   db_data:
