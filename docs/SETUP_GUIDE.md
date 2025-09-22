@@ -28,7 +28,7 @@ Before starting, make sure you have the following installed:
 2.  **Start services with Docker Compose**:
 
     ```bash
-    docker compose up api-dev ( this will run BE service locally )
+    docker compose up api-dev ( This will run the backend service locally, but first you need to create a .env.development or .env.production file based on your NODE_ENV and populate it using the .env.example values. Alternatively, you can pass environment variables directly from the Docker Compose file. )
     ```
 
 ***
